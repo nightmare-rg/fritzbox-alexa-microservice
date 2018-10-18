@@ -2,8 +2,8 @@
 
 from bottle import Bottle, run, response
 import paramiko
-import subprocess
 import configparser
+import fritzctl
 from requestlogger import WSGILogger, ApacheFormatter
 from logging.handlers import TimedRotatingFileHandler
 import os
@@ -31,11 +31,12 @@ def ConfigSectionMap(section):
 API_KEY = ConfigSectionMap("MAIN")["api_key"]
 
 
-def send_wol(ip, mac):
-    p = subprocess.Popen("wakeonlan -i %s -p 22 %s" % (ip, mac), shell=True, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
+def wakeup_device(mac):
+    s = fritzctl.Session(ConfigSectionMap("FRITZBOX")["host"], ConfigSectionMap("FRITZBOX")["user"],
+                         ConfigSectionMap("FRITZBOX")["pass"])
+    api = s.getOOAPI("general_hosts")
 
-    return p.stdout.readlines()
+    api.wakeUp(str(mac))
 
 
 def send_shutdown(ip, user, pw):
@@ -71,7 +72,7 @@ def start_nas(key):
         return 'wrong API Key'
     else:
         response.status = 200
-        return send_wol(ConfigSectionMap("NAS")["ip"], ConfigSectionMap("NAS")["mac"])
+        return wakeup_device(ConfigSectionMap("NAS")["mac"])
 
 
 @app.route('/stop-nas/<key>')
@@ -89,7 +90,3 @@ app = WSGILogger(app, handlers, ApacheFormatter(), ip_header='HTTP_X_FORWARDED_F
 
 run(app, host=ConfigSectionMap("MAIN")["host"], port=ConfigSectionMap("MAIN")["port"],
     debug=ConfigSectionMap("MAIN")["debug"])
-
-
-
-
